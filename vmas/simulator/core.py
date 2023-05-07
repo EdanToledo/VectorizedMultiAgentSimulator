@@ -8,6 +8,7 @@ import math
 import typing
 from abc import ABC, abstractmethod
 from typing import Callable, List, Tuple
+import numpy as np
 
 import torch
 from torch import Tensor
@@ -137,10 +138,10 @@ class Sphere(Shape):
         return self._radius
 
     def get_delta_from_anchor(self, anchor: Tuple[float, float]) -> Tuple[float, float]:
-        delta = torch.tensor([anchor[X] * self.radius, anchor[Y] * self.radius]).to(
-            torch.float32
+        delta = np.array([anchor[X] * self.radius, anchor[Y] * self.radius]).to(
+            np.float32
         )
-        delta_norm = torch.linalg.vector_norm(delta)
+        delta_norm = np.linalg.norm(delta)
         if delta_norm > self.radius:
             delta /= delta_norm * self.radius
         return tuple(delta.tolist())
@@ -209,8 +210,9 @@ class EntityState(TorchVectorizedObject):
 
     @pos.setter
     def pos(self, pos: Tensor):
+       
         assert (
-            self._batch_dim is not None and self._device is not None
+            self._batch_dim is not None
         ), "First add an entity to the world before setting its state"
         assert (
             pos.shape[0] == self._batch_dim
@@ -220,7 +222,7 @@ class EntityState(TorchVectorizedObject):
                 pos.shape == self._vel.shape
             ), f"Position shape must match velocity shape, got {pos.shape} expected {self._vel.shape}"
 
-        self._pos = pos.to(self._device)
+        self._pos = pos
 
     @property
     def vel(self):
@@ -229,7 +231,7 @@ class EntityState(TorchVectorizedObject):
     @vel.setter
     def vel(self, vel: Tensor):
         assert (
-            self._batch_dim is not None and self._device is not None
+            self._batch_dim is not None
         ), "First add an entity to the world before setting its state"
         assert (
             vel.shape[0] == self._batch_dim
@@ -239,7 +241,7 @@ class EntityState(TorchVectorizedObject):
                 vel.shape == self._pos.shape
             ), f"Velocity shape must match position shape, got {vel.shape} expected {self._pos.shape}"
 
-        self._vel = vel.to(self._device)
+        self._vel = vel
 
     @property
     def ang_vel(self):
@@ -248,13 +250,13 @@ class EntityState(TorchVectorizedObject):
     @ang_vel.setter
     def ang_vel(self, ang_vel: Tensor):
         assert (
-            self._batch_dim is not None and self._device is not None
+            self._batch_dim is not None  
         ), "First add an entity to the world before setting its state"
         assert (
             ang_vel.shape[0] == self._batch_dim
         ), f"Internal state must match batch dim, got {ang_vel.shape[0]}, expected {self._batch_dim}"
 
-        self._ang_vel = ang_vel.to(self._device)
+        self._ang_vel = ang_vel
 
     @property
     def rot(self):
@@ -263,13 +265,13 @@ class EntityState(TorchVectorizedObject):
     @rot.setter
     def rot(self, rot: Tensor):
         assert (
-            self._batch_dim is not None and self._device is not None
+            self._batch_dim is not None  
         ), "First add an entity to the world before setting its state"
         assert (
             rot.shape[0] == self._batch_dim
         ), f"Internal state must match batch dim, got {rot.shape[0]}, expected {self._batch_dim}"
 
-        self._rot = rot.to(self._device)
+        self._rot = rot
 
     def _reset(self, env_index: typing.Optional[int]):
         for attr in [self.pos, self.rot, self.vel, self.ang_vel]:
@@ -280,17 +282,17 @@ class EntityState(TorchVectorizedObject):
                     attr[env_index] = 0.0
 
     def _spawn(self, dim_c: int, dim_p: int):
-        self.pos = torch.zeros(
-            self.batch_dim, dim_p, device=self.device, dtype=torch.float32
+        self.pos = np.zeros(
+            (self.batch_dim, dim_p), dtype=np.float32
         )
-        self.vel = torch.zeros(
-            self.batch_dim, dim_p, device=self.device, dtype=torch.float32
+        self.vel = np.zeros(
+            (self.batch_dim, dim_p),  dtype=np.float32
         )
-        self.rot = torch.zeros(
-            self.batch_dim, 1, device=self.device, dtype=torch.float32
+        self.rot = np.zeros(
+            (self.batch_dim, 1),  dtype=np.float32
         )
-        self.ang_vel = torch.zeros(
-            self.batch_dim, 1, device=self.device, dtype=torch.float32
+        self.ang_vel = np.zeros(
+            (self.batch_dim, 1),  dtype=np.float32
         )
 
 
@@ -309,13 +311,13 @@ class AgentState(EntityState):
     @c.setter
     def c(self, c: Tensor):
         assert (
-            self._batch_dim is not None and self._device is not None
+            self._batch_dim is not None  
         ), "First add an entity to the world before setting its state"
         assert (
             c.shape[0] == self._batch_dim
         ), f"Internal state must match batch dim, got {c.shape[0]}, expected {self._batch_dim}"
 
-        self._c = c.to(self._device)
+        self._c = c
 
     @override(EntityState)
     def _reset(self, env_index: typing.Optional[int]):
@@ -330,8 +332,8 @@ class AgentState(EntityState):
     @override(EntityState)
     def _spawn(self, dim_c: int, dim_p: int):
         if dim_c > 0:
-            self.c = torch.zeros(
-                self.batch_dim, dim_c, device=self.device, dtype=torch.float32
+            self.c = np.zeros(
+                self.batch_dim, dim_c, dtype=np.float32
             )
         super()._spawn(dim_c, dim_p)
 
@@ -376,13 +378,13 @@ class Action(TorchVectorizedObject):
     @u.setter
     def u(self, u: Tensor):
         assert (
-            self._batch_dim is not None and self._device is not None
+            self._batch_dim is not None  
         ), "First add an agent to the world before setting its action"
         assert (
             u.shape[0] == self._batch_dim
         ), f"Action must match batch dim, got {u.shape[0]}, expected {self._batch_dim}"
 
-        self._u = u.to(self._device)
+        self._u = u 
 
     @property
     def u_rot(self):
@@ -391,13 +393,13 @@ class Action(TorchVectorizedObject):
     @u_rot.setter
     def u_rot(self, u_rot: Tensor):
         assert (
-            self._batch_dim is not None and self._device is not None
+            self._batch_dim is not None  
         ), "First add an agent to the world before setting its action"
         assert (
             u_rot.shape[0] == self._batch_dim
         ), f"Action must match batch dim, got {u_rot.shape[0]}, expected {self._batch_dim}"
 
-        self._u_rot = u_rot.to(self._device)
+        self._u_rot = u_rot 
 
     @property
     def c(self):
@@ -406,13 +408,13 @@ class Action(TorchVectorizedObject):
     @c.setter
     def c(self, c: Tensor):
         assert (
-            self._batch_dim is not None and self._device is not None
+            self._batch_dim is not None  
         ), "First add an agent to the world before setting its action"
         assert (
             c.shape[0] == self._batch_dim
         ), f"Action must match batch dim, got {c.shape[0]}, expected {self._batch_dim}"
 
-        self._c = c.to(self._device)
+        self._c = c 
 
     @property
     def u_range(self):
@@ -502,7 +504,7 @@ class Entity(TorchVectorizedObject, Observable, ABC):
         self._angular_friction = angular_friction
         # gravity
         self._gravity = (
-            torch.tensor(gravity, device=self.device, dtype=torch.float32)
+            np.array(gravity, dtype=np.float32)
             if gravity is not None
             else gravity
         )
@@ -523,7 +525,7 @@ class Entity(TorchVectorizedObject, Observable, ABC):
         return self._render
 
     def reset_render(self):
-        self._render = torch.full((self.batch_dim,), True, device=self.device)
+        self._render = np.full((self.batch_dim,), True,  )
 
     def collides(self, entity: Entity):
         if not self.collide:
@@ -666,8 +668,9 @@ class Entity(TorchVectorizedObject, Observable, ABC):
 
     @override(TorchVectorizedObject)
     def to(self, device: torch.device):
-        super().to(device)
-        self.state.to(device)
+        # super().to(device)
+        # self.state.to(device)
+        pass
 
     def render(self, env_index: int = 0) -> "List[Geom]":
         from vmas.simulator import rendering
@@ -682,7 +685,7 @@ class Entity(TorchVectorizedObject, Observable, ABC):
         xform.set_rotation(self.state.rot[env_index])
 
         color = self.color
-        if isinstance(color, torch.Tensor) and len(color.shape) > 1:
+        if isinstance(color, np.ndarray) and len(color.shape) > 1:
             color = color[env_index]
         geom.set_color(*color)
 
@@ -946,10 +949,11 @@ class Agent(Entity):
 
     @override(Entity)
     def to(self, device: torch.device):
-        super().to(device)
-        self.action.to(device)
-        for sensor in self.sensors:
-            sensor.to(device)
+        # super().to(device)
+        # self.action.to(device)
+        # for sensor in self.sensors:
+        #     sensor.to(device)
+        pass
 
     @override(Entity)
     def render(self, env_index: int = 0) -> "List[Geom]":
@@ -1015,7 +1019,7 @@ class World(TorchVectorizedObject):
         # drag coefficient
         self._drag = drag
         # gravity
-        self._gravity = torch.tensor(gravity, device=self.device, dtype=torch.float32)
+        self._gravity = np.array(gravity, dtype=np.float32)
         # friction coefficients
         self._linear_friction = linear_friction
         self._angular_friction = angular_friction
@@ -1034,22 +1038,25 @@ class World(TorchVectorizedObject):
             {Line, Box},
             {Box, Box},
         ]
+       
         # Horizontal unit vector
-        self._normal_vector = torch.tensor(
-            [1.0, 0.0], dtype=torch.float32, device=self.device
-        ).repeat(self._batch_dim, 1)
+        self._normal_vector = np.expand_dims(np.array(
+            [1.0, 0.0], dtype=np.float32,
+        ),0).repeat(self._batch_dim, 1)
+
+       
 
     def add_agent(self, agent: Agent):
         """Only way to add agents to the world"""
         agent.batch_dim = self._batch_dim
-        agent.to(self._device)
+        agent 
         agent._spawn(dim_c=self._dim_c, dim_p=self.dim_p)
         self._agents.append(agent)
 
     def add_landmark(self, landmark: Landmark):
         """Only way to add landmarks to the world"""
         landmark.batch_dim = self._batch_dim
-        landmark.to(self._device)
+        landmark 
         landmark._spawn(dim_c=self.dim_c, dim_p=self.dim_p)
         self._landmarks.append(landmark)
 
@@ -1135,24 +1142,24 @@ class World(TorchVectorizedObject):
 
         pos_origin = ray_origin - box.state.pos
         pos_aabb = TorchUtils.rotate_vector(pos_origin, -box.state.rot)
-        ray_dir_world = torch.stack(
-            [torch.cos(ray_direction), torch.sin(ray_direction)], dim=-1
+        ray_dir_world =  np.stack(
+            [ np.cos(ray_direction),  np.sin(ray_direction)], axis=-1
         )
         ray_dir_aabb = TorchUtils.rotate_vector(ray_dir_world, -box.state.rot)
 
         tx1 = (-box.shape.length / 2 - pos_aabb[:, X]) / ray_dir_aabb[:, X]
         tx2 = (box.shape.length / 2 - pos_aabb[:, X]) / ray_dir_aabb[:, X]
-        tx = torch.stack([tx1, tx2], dim=-1)
-        tmin, _ = torch.min(tx, dim=-1)
-        tmax, _ = torch.max(tx, dim=-1)
+        tx =  np.stack([tx1, tx2], axis=-1)
+        tmin, _ =  np.min(tx, axis=-1)
+        tmax, _ =  np.max(tx, axis=-1)
 
         ty1 = (-box.shape.width / 2 - pos_aabb[:, Y]) / ray_dir_aabb[:, Y]
         ty2 = (box.shape.width / 2 - pos_aabb[:, Y]) / ray_dir_aabb[:, Y]
-        ty = torch.stack([ty1, ty2], dim=-1)
-        tymin, _ = torch.min(ty, dim=-1)
-        tymax, _ = torch.max(ty, dim=-1)
-        tmin, _ = torch.max(torch.stack([tmin, tymin], dim=-1), dim=-1)
-        tmax, _ = torch.min(torch.stack([tmax, tymax], dim=-1), dim=-1)
+        ty =  np.stack([ty1, ty2], axis=-1)
+        tymin, _ =  np.min(ty, axis=-1)
+        tymax, _ =  np.max(ty, axis=-1)
+        tmin, _ =  np.max( np.stack([tmin, tymin], axis=-1), axis=-1)
+        tmax, _ =  np.min( np.stack([tmax, tymax], axis=-1), axis=-1)
 
         intersect_aabb = tmin.unsqueeze(1) * ray_dir_aabb + pos_aabb
         intersect_world = (
@@ -1160,7 +1167,7 @@ class World(TorchVectorizedObject):
         )
 
         collision = (tmax >= tmin) & (tmin > 0.0)
-        dist = torch.linalg.norm(ray_origin - intersect_world, dim=1)
+        dist = np.linalg.norm(ray_origin - intersect_world, axis=1)
         dist[~collision] = max_range
         return dist
 
@@ -1171,8 +1178,8 @@ class World(TorchVectorizedObject):
         ray_direction: Tensor,
         max_range: float,
     ):
-        ray_dir_world = torch.stack(
-            [torch.cos(ray_direction), torch.sin(ray_direction)], dim=-1
+        ray_dir_world = np.stack(
+            [np.cos(ray_direction), np.sin(ray_direction)], axis=-1
         )
         test_point_pos = sphere.state.pos
         line_rot = ray_direction
@@ -1184,17 +1191,17 @@ class World(TorchVectorizedObject):
         )
 
         d = test_point_pos - closest_point
-        d_norm = torch.linalg.vector_norm(d, dim=1)
+        d_norm = np.linalg.norm(d, axis=1)
         ray_intersects = d_norm < sphere.shape.radius
-        m = torch.sqrt(sphere.shape.radius**2 - d_norm**2)
+        m =  np.sqrt(sphere.shape.radius**2 - d_norm**2)
 
         u = test_point_pos - ray_origin
         u1 = closest_point - ray_origin
 
         # Dot product of u and u1
-        u_dot_ray = torch.einsum("bs,bs->b", u, ray_dir_world)
+        u_dot_ray =  np.einsum("bs,bs->b", u, ray_dir_world)
         sphere_is_in_front = u_dot_ray > 0.0
-        dist = torch.linalg.vector_norm(u1, dim=1) - m
+        dist = np.linalg.norm(u1, axis=1) - m
         dist[~(ray_intersects & sphere_is_in_front)] = max_range
 
         return dist
@@ -1217,29 +1224,29 @@ class World(TorchVectorizedObject):
 
         p = line.state.pos
         r = (
-            torch.stack(
+             np.stack(
                 [
-                    torch.cos(line.state.rot.squeeze(1)),
-                    torch.sin(line.state.rot.squeeze(1)),
+                     np.cos(line.state.rot.squeeze(1)),
+                     np.sin(line.state.rot.squeeze(1)),
                 ],
-                dim=-1,
+                axis=-1,
             )
             * line.shape.length
         )
 
         q = ray_origin
-        s = torch.stack(
+        s =  np.stack(
             [
-                torch.cos(ray_direction),
-                torch.sin(ray_direction),
+                 np.cos(ray_direction),
+                 np.sin(ray_direction),
             ],
-            dim=-1,
+            axis=-1,
         )
 
         rxs = TorchUtils.cross(r, s)
         t = TorchUtils.cross(q - p, s / rxs.unsqueeze(1))
         u = TorchUtils.cross(q - p, r / rxs.unsqueeze(1))
-        d = torch.linalg.norm(u.unsqueeze(1) * s, dim=1)
+        d =  np.linalg.norm(u.unsqueeze(1) * s, axis=1)
 
         perpendicular = rxs == 0.0
         above_line = t > 0.5
@@ -1265,7 +1272,7 @@ class World(TorchVectorizedObject):
 
         # Initialize with full max_range to avoid dists being empty when all entities are filtered
         dists = [
-            torch.full((self.batch_dim,), fill_value=max_range, device=self.device)
+            np.full((self.batch_dim,), fill_value=max_range)
         ]
         for e in self.entities:
             if entity is e or not entity_filter(e):
@@ -1282,7 +1289,7 @@ class World(TorchVectorizedObject):
             else:
                 assert False, f"Shape {e.shape} currently not handled by cast_ray"
             dists.append(d)
-        dist, _ = torch.min(torch.stack(dists, dim=-1), dim=-1)
+        dist =  np.min( np.stack(dists, axis=-1), axis=-1)
         return dist
 
     def get_distance_from_point(
@@ -1292,17 +1299,17 @@ class World(TorchVectorizedObject):
 
         if isinstance(entity.shape, Sphere):
             delta_pos = entity.state.pos - test_point_pos
-            dist = torch.linalg.vector_norm(delta_pos, dim=1)
+            dist = np.linalg.norm(delta_pos, axis=1)
             return_value = dist - entity.shape.radius
         elif isinstance(entity.shape, Box):
             closest_point = self._get_closest_point_box(entity, test_point_pos)
-            distance = torch.linalg.vector_norm(test_point_pos - closest_point, dim=1)
+            distance = np.linalg.norm(test_point_pos - closest_point, axis=1)
             return_value = distance - LINE_MIN_DIST
         elif isinstance(entity.shape, Line):
             closest_point = self._get_closest_point_line(
                 entity.state.pos, entity.state.rot, entity.shape.length, test_point_pos
             )
-            distance = torch.linalg.vector_norm(test_point_pos - closest_point, dim=1)
+            distance = np.linalg.norm(test_point_pos - closest_point, axis=1)
             return_value = distance - LINE_MIN_DIST
         else:
             assert False, "Distance not computable for given entity"
@@ -1354,7 +1361,7 @@ class World(TorchVectorizedObject):
                 entity_b.state.rot,
                 entity_b.shape.length,
             )
-            dist = torch.linalg.vector_norm(point_a - point_b, dim=1)
+            dist = np.linalg.norm(point_a - point_b, axis=1)
             return_value = dist - LINE_MIN_DIST
         elif (
             isinstance(entity_a.shape, Box)
@@ -1370,11 +1377,11 @@ class World(TorchVectorizedObject):
             point_box, point_line = self._get_closest_line_box(
                 box, line.state.pos, line.state.rot, line.shape.length
             )
-            dist = torch.linalg.vector_norm(point_box - point_line, dim=1)
+            dist = np.linalg.norm(point_box - point_line, axis=1)
             return_value = dist - LINE_MIN_DIST
         elif isinstance(entity_a.shape, Box) and isinstance(entity_b.shape, Box):
             point_a, point_b = self._get_closest_box_box(entity_a, entity_b)
-            dist = torch.linalg.vector_norm(point_a - point_b, dim=1)
+            dist = np.linalg.norm(point_a - point_b, axis=1)
             return_value = dist - LINE_MIN_DIST
         else:
             assert False, "Distance not computable for given entities"
@@ -1419,14 +1426,14 @@ class World(TorchVectorizedObject):
             )
             closest_point = self._get_closest_point_box(box, sphere.state.pos)
 
-            distance_sphere_closest_point = torch.linalg.vector_norm(
-                sphere.state.pos - closest_point, dim=1
+            distance_sphere_closest_point = np.linalg.norm(
+                sphere.state.pos - closest_point, axis=1
             )
-            distance_sphere_box = torch.linalg.vector_norm(
-                sphere.state.pos - box.state.pos, dim=1
+            distance_sphere_box = np.linalg.norm(
+                sphere.state.pos - box.state.pos, axis=1
             )
-            distance_closest_point_box = torch.linalg.vector_norm(
-                box.state.pos - closest_point, dim=1
+            distance_closest_point_box = np.linalg.norm(
+                box.state.pos - closest_point, axis=1
             )
             dist_min = sphere.shape.radius + LINE_MIN_DIST
             return_value = (distance_sphere_box < distance_closest_point_box) + (
@@ -1441,19 +1448,19 @@ class World(TorchVectorizedObject):
     # update state of the world
     def step(self):
         # forces
-        self.force = torch.zeros(
-            self._batch_dim,
+        self.force =  np.zeros(
+            (self._batch_dim,
             len(self.entities),
-            self._dim_p,
-            device=self.device,
-            dtype=torch.float32,
+            self._dim_p,),
+             
+            dtype=np.float32,
         )
-        self.torque = torch.zeros(
-            self._batch_dim,
+        self.torque =  np.zeros(
+            (self._batch_dim,
             len(self.entities),
-            1,
-            device=self.device,
-            dtype=torch.float32,
+            1,),
+             
+            dtype=np.float32,
         )
 
         for substep in range(self._substeps):
@@ -1487,8 +1494,8 @@ class World(TorchVectorizedObject):
             # set applied forces
             if entity.movable:
                 noise = (
-                    torch.randn(
-                        *entity.action.u.shape, device=self.device, dtype=torch.float32
+                     np.random.randn(
+                        *entity.action.u.shape, dtype=np.float32
                     )
                     * entity.u_noise
                     if entity.u_noise
@@ -1500,21 +1507,20 @@ class World(TorchVectorizedObject):
                         entity.action.u, entity.max_f
                     )
                 if entity.f_range is not None:
-                    entity.action.u = torch.clamp(
+                    entity.action.u = np.clip(
                         entity.action.u, -entity.f_range, entity.f_range
                     )
                 self.force[:, index] += entity.action.u
-            assert not self.force.isnan().any()
+            assert not np.isnan(self.force).any()
 
     def _apply_action_torque(self, entity: Entity, index: int):
         if isinstance(entity, Agent) and entity.u_rot_range != 0:
             # set applied forces
             if entity.rotatable:
                 noise = (
-                    torch.randn(
+                    np.random.randn(
                         *entity.action.u_rot.shape,
-                        device=self.device,
-                        dtype=torch.float32,
+                        dtype=np.float32,
                     )
                     * entity.action.u_rot_noise
                     if entity.action.u_rot_noise
@@ -1528,7 +1534,7 @@ class World(TorchVectorizedObject):
                         entity.action.u_rot, entity.max_t
                     )
                 if entity.t_range is not None:
-                    entity.action.u_rot = torch.clamp(
+                    entity.action.u_rot = np.clip(
                         entity.action.u_rot, -entity.t_range, entity.t_range
                     )
                 self.torque[:, index] += entity.action.u_rot
@@ -1543,16 +1549,16 @@ class World(TorchVectorizedObject):
 
     def _apply_friction_force(self, entity: Entity, index: int):
         def get_friction_force(vel, coeff, force, mass):
-            speed = torch.linalg.vector_norm(vel, dim=1)
+            speed = np.linalg.norm(vel, axis=1)
             static = speed == 0
 
             if not isinstance(coeff, Tensor):
-                coeff = torch.full_like(force, coeff, device=self.device)
+                coeff = np.full_like(force, coeff,  )
             coeff = coeff.expand(force.shape)
 
             friction_force_constant = coeff * mass
 
-            friction_force = -(vel / speed.unsqueeze(-1)) * torch.minimum(
+            friction_force = -(vel / speed.unsqueeze(-1)) * np.minimum(
                 friction_force_constant, (vel.abs() / self._sub_dt) * mass
             )
             friction_force[static] = 0
@@ -1619,7 +1625,7 @@ class World(TorchVectorizedObject):
         a_shape = a.shape
         b_shape = b.shape
         if (
-            torch.linalg.vector_norm(a.state.pos - b.state.pos, dim=1)
+            np.linalg.norm(a.state.pos - b.state.pos, axis=1)
             > a.shape.circumscribed_radius() + b.shape.circumscribed_radius()
         ).all():
             return False
@@ -1831,12 +1837,12 @@ class World(TorchVectorizedObject):
     def get_inner_point_box(self, outside_point, surface_point, box):
         v = surface_point - outside_point
         u = box.state.pos - surface_point
-        v_norm = torch.linalg.vector_norm(v, dim=1).unsqueeze(-1)
-        x_magnitude = torch.einsum("bs,bs->b", v, u).unsqueeze(-1) / v_norm
+        v_norm = np.linalg.norm(v, axis=1).unsqueeze(-1)
+        x_magnitude = np.einsum("bs,bs->b", v, u).unsqueeze(-1) / v_norm
         x = (v / v_norm) * x_magnitude
         x[v_norm.repeat(1, 2) == 0] = surface_point[v_norm.repeat(1, 2) == 0]
         x_magnitude[v_norm == 0] = 0
-        return surface_point + x, torch.abs(x_magnitude.squeeze(-1))
+        return surface_point + x, np.abs(x_magnitude.squeeze(-1))
 
     def _get_closest_box_box(self, a: Entity, b: Entity):
         lines_a = self._get_all_lines_box(a)
@@ -1850,23 +1856,23 @@ class World(TorchVectorizedObject):
         for line_b in lines_b:
             point_pairs.append(self._get_closest_line_box(a, *line_b))
 
-        closest_point_1 = torch.full(
+        closest_point_1 = np.full(
             (self.batch_dim, self.dim_p),
             float("inf"),
-            device=self.device,
-            dtype=torch.float32,
+             
+            dtype=np.float32,
         )
-        closest_point_2 = torch.full(
+        closest_point_2 = np.full(
             (self.batch_dim, self.dim_p),
             float("inf"),
-            device=self.device,
-            dtype=torch.float32,
+             
+            dtype=np.float32,
         )
-        distance = torch.full(
-            (self.batch_dim,), float("inf"), device=self.device, dtype=torch.float32
+        distance = np.full(
+            (self.batch_dim,), float("inf"),   dtype=np.float32
         )
         for p1, p2 in point_pairs:
-            d = torch.linalg.vector_norm(p1 - p2, dim=1)
+            d = np.linalg.norm(p1 - p2, axis=1)
             is_closest = d < distance
             closest_point_1[is_closest] = p1[is_closest]
             closest_point_2[is_closest] = p2[is_closest]
@@ -1876,9 +1882,9 @@ class World(TorchVectorizedObject):
 
     @staticmethod
     def get_line_extrema(line_pos, line_rot, line_length):
-        x = (line_length / 2) * torch.cos(line_rot)
-        y = (line_length / 2) * torch.sin(line_rot)
-        xy = torch.cat([x, y], dim=1)
+        x = (line_length / 2) * np.cos(line_rot)
+        y = (line_length / 2) * np.sin(line_rot)
+        xy = np.concatenate([x, y], axis=1)
 
         point_a = line_pos + xy
         point_b = line_pos - xy
@@ -1914,23 +1920,23 @@ class World(TorchVectorizedObject):
             (point_b2_line_a, point_b2),
         )
 
-        closest_point_1 = torch.full(
+        closest_point_1 = np.full(
             (self.batch_dim, self.dim_p),
             float("inf"),
-            device=self.device,
-            dtype=torch.float32,
+             
+            dtype=np.float32,
         )
-        closest_point_2 = torch.full(
+        closest_point_2 = np.full(
             (self.batch_dim, self.dim_p),
             float("inf"),
-            device=self.device,
-            dtype=torch.float32,
+             
+            dtype=np.float32,
         )
-        min_distance = torch.full(
-            (self.batch_dim,), float("inf"), device=self.device, dtype=torch.float32
+        min_distance = np.full(
+            (self.batch_dim,), float("inf"),   dtype=np.float32
         )
         for p1, p2 in point_pairs:
-            d = torch.linalg.vector_norm(p1 - p2, dim=1)
+            d = np.linalg.norm(p1 - p2, axis=1)
             is_closest = d < min_distance
             closest_point_1[is_closest] = p1[is_closest]
             closest_point_2[is_closest] = p2[is_closest]
@@ -1960,14 +1966,14 @@ class World(TorchVectorizedObject):
 
         cross_r_s_is_zero = cross_r_s == 0
 
-        distance = torch.full(
-            (self.batch_dim,), float("inf"), device=self.device, dtype=torch.float32
+        distance = np.full(
+            (self.batch_dim,), float("inf"),   dtype=np.float32
         )
-        point = torch.full(
+        point = np.full(
             (self.batch_dim, self.dim_p),
             float("inf"),
-            device=self.device,
-            dtype=torch.float32,
+             
+            dtype=np.float32,
         )
 
         point[
@@ -1991,17 +1997,17 @@ class World(TorchVectorizedObject):
         assert isinstance(box.shape, Box)
 
         closest_points = self._get_all_points_box(box, test_point_pos)
-        closest_point = torch.full(
+        closest_point = np.full(
             (self.batch_dim, self.dim_p),
             float("inf"),
-            device=self.device,
-            dtype=torch.float32,
+             
+            dtype=np.float32,
         )
-        distance = torch.full(
-            (self.batch_dim,), float("inf"), device=self.device, dtype=torch.float32
+        distance = np.full(
+            (self.batch_dim,), float("inf"),   dtype=np.float32
         )
         for p in closest_points:
-            d = torch.linalg.vector_norm(test_point_pos - p, dim=1)
+            d = np.linalg.norm(test_point_pos - p, axis=1)
             is_closest = d < distance
             closest_point[is_closest] = p[is_closest]
             distance[is_closest] = d[is_closest]
@@ -2014,7 +2020,7 @@ class World(TorchVectorizedObject):
         # Rotate normal vector by the angle of the box
         rotated_vector = TorchUtils.rotate_vector(self._normal_vector, box.state.rot)
         rotated_vector2 = TorchUtils.rotate_vector(
-            self._normal_vector, box.state.rot + torch.pi / 2
+            self._normal_vector, box.state.rot + np.pi / 2
         )
 
         # Middle points of the sides
@@ -2028,7 +2034,7 @@ class World(TorchVectorizedObject):
             lines.append(
                 [
                     p,
-                    box.state.rot + torch.pi / 2 if i <= 1 else box.state.rot,
+                    box.state.rot + np.pi / 2 if i <= 1 else box.state.rot,
                     box.shape.width if i <= 1 else box.shape.length,
                 ]
             )
@@ -2037,27 +2043,27 @@ class World(TorchVectorizedObject):
     def _get_closest_line_box(self, box: Entity, line_pos, line_rot, line_length):
         lines = self._get_all_lines_box(box)
 
-        closest_point_1 = torch.full(
+        closest_point_1 = np.full(
             (self.batch_dim, self.dim_p),
             float("inf"),
-            device=self.device,
-            dtype=torch.float32,
+             
+            dtype=np.float32,
         )
-        closest_point_2 = torch.full(
+        closest_point_2 = np.full(
             (self.batch_dim, self.dim_p),
             float("inf"),
-            device=self.device,
-            dtype=torch.float32,
+             
+            dtype=np.float32,
         )
-        distance = torch.full(
-            (self.batch_dim,), float("inf"), device=self.device, dtype=torch.float32
+        distance = np.full(
+            (self.batch_dim,), float("inf"),   dtype=np.float32
         )
 
         for box_line in lines:
             p_box, p_line = self._get_closest_points_line_line(
                 *box_line, line_pos, line_rot, line_length
             )
-            d = torch.linalg.vector_norm(p_box - p_line, dim=1)
+            d = np.linalg.norm(p_box - p_line, axis=1)
             is_closest = d < distance
             closest_point_1[is_closest] = p_box[is_closest]
             closest_point_2[is_closest] = p_line[is_closest]
@@ -2092,16 +2098,16 @@ class World(TorchVectorizedObject):
         # Get distance between line and sphere
         delta_pos = line_pos - test_point_pos
         # Dot product of distance and line vector
-        dot_p = torch.einsum("bs,bs->b", delta_pos, rotated_vector).unsqueeze(-1)
+        dot_p = np.expand_dims(np.einsum("bs,bs->b", delta_pos, rotated_vector),-1)
         # Coordinates of the closes point
-        sign = torch.sign(dot_p)
+        sign = np.sign(dot_p)
         distance_from_line_center = (
-            torch.min(
-                torch.abs(dot_p),
-                torch.tensor(line_length / 2, dtype=torch.float32, device=self.device),
+            np.min(
+                np.abs(dot_p),
+                np.array(line_length / 2, dtype=np.float32),
             )
             if limit_to_line_length
-            else torch.abs(dot_p)
+            else np.abs(dot_p)
         )
         closest_point = line_pos - sign * distance_from_line_center * rotated_vector
         return closest_point
@@ -2116,14 +2122,14 @@ class World(TorchVectorizedObject):
     ) -> Tensor:
         min_dist = 1e-6
         delta_pos = pos_a - pos_b
-        dist = torch.linalg.vector_norm(delta_pos, dim=1)
+        dist = np.linalg.norm(delta_pos, axis=1)
         sign = -1 if attractive else 1
 
         # softmax penetration
         k = self._contact_margin
         penetration = (
-            torch.logaddexp(
-                torch.tensor(0.0, dtype=torch.float32, device=self.device),
+            np.logaddexp(
+                np.array(0.0, dtype=np.float32),
                 (dist_min - dist) * sign / k,
             )
             * k
@@ -2165,11 +2171,11 @@ class World(TorchVectorizedObject):
                 )
             new_pos = entity.state.pos + entity.state.vel * self._sub_dt
             if self._x_semidim is not None:
-                new_pos[:, X] = torch.clamp(
+                new_pos[:, X] = np.clip(
                     new_pos[:, X], -self._x_semidim, self._x_semidim
                 )
             if self._y_semidim is not None:
-                new_pos[:, Y] = torch.clamp(
+                new_pos[:, Y] = np.clip(
                     new_pos[:, Y], -self._y_semidim, self._y_semidim
                 )
             entity.state.pos = new_pos
@@ -2189,8 +2195,8 @@ class World(TorchVectorizedObject):
         # set communication state (directly for now)
         if not agent.silent:
             noise = (
-                torch.randn(
-                    *agent.action.c.shape, device=self.device, dtype=torch.float32
+                np.random.randn(
+                    *agent.action.c.shape,   dtype=np.float32
                 )
                 * agent.c_noise
                 if agent.c_noise
@@ -2200,6 +2206,7 @@ class World(TorchVectorizedObject):
 
     @override(TorchVectorizedObject)
     def to(self, device: torch.device):
-        super().to(device)
-        for e in self.entities:
-            e.to(device)
+        # super().to(device)
+        # for e in self.entities:
+        #     e.to(device)
+        pass

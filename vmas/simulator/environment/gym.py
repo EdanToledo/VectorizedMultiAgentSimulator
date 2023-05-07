@@ -77,16 +77,15 @@ class GymWrapper(gym.Env):
         actions = []
         for agent in self._env.agents:
             actions.append(
-                torch.zeros(
-                    1,
-                    self._env.get_agent_action_size(agent),
-                    device=self._env.device,
-                    dtype=torch.float32,
+                np.zeros(
+                    (1,
+                    self._env.get_agent_action_size(agent),),
+                    dtype=np.float32,
                 )
             )
 
         for i in range(self._env.n_agents):
-            act = torch.tensor(list_in[i], dtype=torch.float32, device=self._env.device)
+            act = np.array(list_in[i], dtype=np.float32)
             if len(act.shape) == 0:
                 assert (
                     self._env.get_agent_action_size(self._env.agents[i]) == 1

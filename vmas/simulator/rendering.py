@@ -124,7 +124,7 @@ class Viewer(object):
 
     def set_bounds(self, left, right, bottom, top):
         assert right > left and top > bottom
-        self.bounds = torch.tensor([left, right, bottom, top], device=left.device)
+        self.bounds = np.array([left, right, bottom, top])
         scalex = self.width / (right - left)
         scaley = self.height / (top - bottom)
         self.transform = Transform(

@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Tuple, List
+import numpy as np
 
 import torch
 
@@ -103,7 +104,7 @@ class Joint(vmas.simulator.utils.Observer):
             batch_index=None,
         )
         self.landmark.set_rot(
-            torch.atan2(
+            np.atan2(
                 pos_b[:, vmas.simulator.utils.Y] - pos_a[:, vmas.simulator.utils.Y],
                 pos_b[:, vmas.simulator.utils.X] - pos_a[:, vmas.simulator.utils.X],
             ).unsqueeze(-1),
@@ -148,7 +149,7 @@ class JointConstraint:
         else:
             assert False
         return vmas.simulator.utils.TorchUtils.rotate_vector(
-            torch.tensor(
+            np.array(
                 entity.shape.get_delta_from_anchor(anchor),
                 device=entity.state.pos.device,
             ),
@@ -171,7 +172,7 @@ class JointConstraint:
         )
         pos_point_a = self.pos_point(self.entity_a)[env_index]
         pos_point_b = self.pos_point(self.entity_b)[env_index]
-        angle = torch.atan2(
+        angle = np.arctan2(
             pos_point_b[vmas.simulator.utils.Y] - pos_point_a[vmas.simulator.utils.Y],
             pos_point_b[vmas.simulator.utils.X] - pos_point_a[vmas.simulator.utils.X],
         )

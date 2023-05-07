@@ -30,7 +30,7 @@ class Environment(TorchVectorizedObject):
         num_envs: int = 32,
         device: DEVICE_TYPING = "cpu",
         max_steps: Optional[int] = None,
-        continuous_actions: bool = True,
+        continuous_actions: bool = False,
         seed: Optional[int] = None,
         dict_spaces: bool = False,
         **kwargs,
@@ -74,7 +74,7 @@ class Environment(TorchVectorizedObject):
             self.seed(seed)
         # reset world
         self.scenario.env_reset_world_at(env_index=None)
-        self.steps = torch.zeros(self.num_envs, device=self.device)
+        self.steps = np.zeros(self.num_envs)
 
         result = self.get_from_scenario(
             get_observations=return_observations,
@@ -138,7 +138,7 @@ class Environment(TorchVectorizedObject):
                 else:
                     rewards.append(reward)
             if get_observations:
-                observation = self.scenario.observation(agent).clone()
+                observation = self.scenario.observation(agent).copy()
                 if dict_agent_names:
                     obs.update({agent.name: observation})
                 else:
@@ -197,8 +197,8 @@ class Environment(TorchVectorizedObject):
         ), f"Expecting actions for {self.n_agents}, got {len(actions)} actions"
         for i in range(len(actions)):
             if not isinstance(actions[i], Tensor):
-                actions[i] = torch.tensor(
-                    actions[i], dtype=torch.float32, device=self.device
+                actions[i] = np.array(
+                    actions[i], dtype=np.float32
                 )
             if len(actions[i].shape) == 1:
                 actions[i].unsqueeze_(-1)
@@ -328,19 +328,19 @@ class Environment(TorchVectorizedObject):
         )
 
     def _check_discrete_action(self, action: Tensor, low: int, high: int, type: str):
-        assert torch.all(
-            torch.any(
-                torch.arange(low, high, device=self.device).repeat(self.num_envs)
+        assert np.all(
+            np.any(
+                np.arange(low, high).repeat(self.num_envs)
                 == action,
-                dim=-1,
+                axis=-1,
             )
         ), f"Discrete {type} actions are out of bounds, allowed int range [{low},{high})"
 
     # set env action for a particular agent
     def _set_action(self, action, agent):
-        action = action.clone().to(self.device)
-        agent.action.u = torch.zeros(
-            self.batch_dim, self.world.dim_p, device=self.device, dtype=torch.float32
+        action = action.copy()
+        agent.action.u = np.zeros(
+            (self.batch_dim, self.world.dim_p), dtype=np.float32
         )
 
         assert action.shape[1] == self.get_agent_action_size(agent), (
@@ -352,13 +352,13 @@ class Environment(TorchVectorizedObject):
         if self.continuous_actions:
             physical_action = action[:, action_index : action_index + self.world.dim_p]
             action_index += self.world.dim_p
-            assert not torch.any(
-                torch.abs(physical_action) > agent.u_range
+            assert not np.any(
+                np.abs(physical_action) > agent.u_range
             ), f"Physical actions of agent {agent.name} are out of its range {agent.u_range}"
 
-            agent.action.u = physical_action.to(torch.float32)
+            agent.action.u = physical_action.to(np.float32)
         else:
-            physical_action = action[:, action_index].unsqueeze(-1)
+            physical_action = np.expand_dims(action[:, action_index], -1)
             action_index += 1
             self._check_discrete_action(
                 physical_action,
@@ -381,17 +381,17 @@ class Environment(TorchVectorizedObject):
 
         agent.action.u *= agent.u_multiplier
         if agent.u_rot_range != 0:
-            agent.action.u_rot = torch.zeros(
-                self.batch_dim, 1, device=self.device, dtype=torch.float32
+            agent.action.u_rot = np.zeros(
+                (self.batch_dim, 1,) ,dtype=np.float32
             )
             if self.continuous_actions:
                 physical_action = action[:, action_index]
                 action_index += 1
-                assert not torch.any(
-                    torch.abs(physical_action) > agent.u_rot_range
+                assert not np.any(
+                    np.abs(physical_action) > agent.u_rot_range
                 ), f"Physical rotation actions of agent {agent.name} are out of its range {agent.u_rot_range}"
 
-                agent.action.u_rot = physical_action.to(torch.float32)
+                agent.action.u_rot = physical_action.to(np.float32)
             else:
                 physical_action = action[:, action_index].unsqueeze(-1)
                 action_index += 1
@@ -418,17 +418,16 @@ class Environment(TorchVectorizedObject):
                     comm_action, 0, self.world.dim_c, "communication"
                 )
                 comm_action = comm_action.long()
-                agent.action.c = torch.zeros(
-                    self.num_envs,
-                    self.world.dim_c,
-                    device=self.device,
-                    dtype=torch.float32,
+                agent.action.c = np.zeros(
+                    (self.num_envs,
+                    self.world.dim_c,),
+                    dtype=np.float32,
                 )
                 # Discrete to one-hot
                 agent.action.c.scatter_(1, comm_action, 1)
             else:
                 comm_action = action[:, action_index:]
-                assert not torch.any(comm_action > 1) and not torch.any(
+                assert not np.any(comm_action > 1) and not np.any(
                     comm_action < 0
                 ), "Comm actions are out of range [0,1]"
                 agent.action.c = comm_action
@@ -542,7 +541,7 @@ class Environment(TorchVectorizedObject):
                         + "]"
                     )
                 else:
-                    word = ALPHABET[torch.argmax(agent.state.c[env_index]).item()]
+                    word = ALPHABET[np.argmax(agent.state.c[env_index]).item()]
 
                 message = agent.name + " sends " + word + "   "
                 self.viewer.text_lines[idx].set_text(message)
@@ -551,32 +550,32 @@ class Environment(TorchVectorizedObject):
         zoom = max(VIEWER_MIN_ZOOM, self.scenario.viewer_zoom)
 
         if aspect_ratio < 1:
-            cam_range = torch.tensor([zoom, zoom / aspect_ratio], device=self.device)
+            cam_range = np.array([zoom, zoom / aspect_ratio])
         else:
-            cam_range = torch.tensor([zoom * aspect_ratio, zoom], device=self.device)
+            cam_range = np.array([zoom * aspect_ratio, zoom])
 
         if shared_viewer:
             # zoom out to fit everyone
-            all_poses = torch.stack(
-                [agent.state.pos[env_index] for agent in self.world.agents], dim=0
+            all_poses = np.stack(
+                [agent.state.pos[env_index] for agent in self.world.agents], axis=0
             )
             max_agent_radius = max(
                 [agent.shape.circumscribed_radius() for agent in self.world.agents]
             )
             viewer_size_fit = (
-                torch.stack(
+                np.stack(
                     [
-                        torch.max(torch.abs(all_poses[:, X])),
-                        torch.max(torch.abs(all_poses[:, Y])),
+                        np.max(np.abs(all_poses[:, X])),
+                        np.max(np.abs(all_poses[:, Y])),
                     ]
                 )
                 + 2 * max_agent_radius
             )
 
-            viewer_size = torch.maximum(
-                viewer_size_fit / cam_range, torch.tensor(zoom, device=self.device)
+            viewer_size = np.maximum(
+                viewer_size_fit / cam_range, np.array(zoom)
             )
-            cam_range *= torch.max(viewer_size)
+            cam_range *= np.max(viewer_size)
             self.viewer.set_bounds(
                 -cam_range[X],
                 cam_range[X],
@@ -654,6 +653,7 @@ class Environment(TorchVectorizedObject):
 
     @override(TorchVectorizedObject)
     def to(self, device: DEVICE_TYPING):
-        device = torch.device(device)
-        self.scenario.to(device)
-        super().to(device)
+        # device = torch.device(device)
+        # self.scenario.to(device)
+        # super().to(device)
+        pass

@@ -134,7 +134,7 @@ def x_to_rgb_colormap(
 class TorchUtils:
     @staticmethod
     def clamp_with_norm(tensor: Tensor, max_norm: float):
-        norm = torch.linalg.vector_norm(tensor, dim=-1)
+        norm = np.linalg.norm(tensor, axis=-1)
         new_tensor = (tensor / norm.unsqueeze(-1)) * max_norm
         tensor[norm > max_norm] = new_tensor[norm > max_norm]
         return tensor
@@ -145,14 +145,14 @@ class TorchUtils:
             angle = angle.squeeze(-1)
         if len(vector.shape) == 1:
             vector = vector.unsqueeze(0)
-        cos = torch.cos(angle)
-        sin = torch.sin(angle)
-        return torch.stack(
+        cos = np.cos(angle)
+        sin = np.sin(angle)
+        return np.stack(
             [
                 vector[:, X] * cos - vector[:, Y] * sin,
                 vector[:, X] * sin + vector[:, Y] * cos,
             ],
-            dim=-1,
+            axis=-1,
         )
 
     @staticmethod
@@ -180,8 +180,8 @@ class ScenarioUtils:
         batch_size = world.batch_dim if env_index is None else 1
 
         if occupied_positions is None:
-            occupied_positions = torch.zeros(
-                (batch_size, 0, world.dim_p), device=world.device
+            occupied_positions = np.zeros(
+                (batch_size, 0, world.dim_p),
             )
 
         for entity in entities:
@@ -193,7 +193,7 @@ class ScenarioUtils:
                 x_bounds,
                 y_bounds,
             )
-            occupied_positions = torch.cat([occupied_positions, pos], dim=1)
+            occupied_positions = np.concatenate([occupied_positions, pos], axis=1)
             entity.set_pos(pos.squeeze(1), batch_index=env_index)
 
     @staticmethod
@@ -207,31 +207,26 @@ class ScenarioUtils:
     ):
         batch_size = world.batch_dim if env_index is None else 1
 
+        
+        
         pos = None
         while True:
-            proposed_pos = torch.cat(
+            proposed_pos = np.concatenate(
                 [
-                    torch.empty(
-                        (batch_size, 1, 1),
-                        device=world.device,
-                        dtype=torch.float32,
-                    ).uniform_(*x_bounds),
-                    torch.empty(
-                        (batch_size, 1, 1),
-                        device=world.device,
-                        dtype=torch.float32,
-                    ).uniform_(*y_bounds),
+                    np.random.uniform(*x_bounds,(batch_size, 1, 1)),
+                    np.random.uniform(*y_bounds,(batch_size, 1, 1)),
                 ],
-                dim=2,
+                axis=2,
             )
             if pos is None:
                 pos = proposed_pos
             if occupied_positions.shape[1] == 0:
                 break
-
-            dist = torch.cdist(occupied_positions, pos)
-            overlaps = torch.any((dist < min_dist_between_entities).squeeze(2), dim=1)
-            if torch.any(overlaps, dim=0):
+            
+            
+            dist =  np.linalg.norm(occupied_positions - pos, keepdims=True,)
+            overlaps = np.any((dist < min_dist_between_entities).squeeze(2), axis=1)
+            if np.any(overlaps, axis=0):
                 pos[overlaps] = proposed_pos[overlaps]
             else:
                 break

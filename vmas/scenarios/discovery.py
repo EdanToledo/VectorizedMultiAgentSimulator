@@ -4,6 +4,7 @@
 
 import typing
 from typing import Dict, Callable, List
+import numpy as np
 
 import torch
 from torch import Tensor
@@ -85,8 +86,8 @@ class Scenario(BaseScenario):
                     ),
                 ],
             )
-            agent.collision_rew = torch.zeros(batch_dim, device=device)
-            agent.covering_reward = agent.collision_rew.clone()
+            agent.collision_rew = np.zeros(batch_dim)
+            agent.covering_reward = agent.collision_rew.copy()
             world.add_agent(agent)
 
         self._targets = []
@@ -101,16 +102,16 @@ class Scenario(BaseScenario):
             world.add_landmark(target)
             self._targets.append(target)
 
-        self.covered_targets = torch.zeros(batch_dim, self.n_targets, device=device)
-        self.shared_covering_rew = torch.zeros(batch_dim, device=device)
+        self.covered_targets = np.zeros((batch_dim, self.n_targets))
+        self.shared_covering_rew = np.zeros(batch_dim)
 
         return world
 
     def reset_world_at(self, env_index: int = None):
         placable_entities = self._targets[: self.n_targets] + self.world.agents
         if env_index is None:
-            self.all_time_covered_targets = torch.full(
-                (self.world.batch_dim, self.n_targets), False, device=self.world.device
+            self.all_time_covered_targets = np.full(
+                (self.world.batch_dim, self.n_targets), False, 
             )
         else:
             self.all_time_covered_targets[env_index] = False
@@ -131,17 +132,17 @@ class Scenario(BaseScenario):
         agent_index = self.world.agents.index(agent)
 
         if is_first:
-            self.time_rew = torch.full(
-                (self.world.batch_dim,), self.time_penalty, device=self.world.device
+            self.time_rew = np.full(
+                (self.world.batch_dim,), self.time_penalty,
             )
-            self.agents_pos = torch.stack(
-                [a.state.pos for a in self.world.agents], dim=1
+            self.agents_pos = np.stack(
+                [a.state.pos for a in self.world.agents], axis=1
             )
-            self.targets_pos = torch.stack([t.state.pos for t in self._targets], dim=1)
-            self.agents_targets_dists = torch.cdist(self.agents_pos, self.targets_pos)
-            self.agents_per_target = torch.sum(
-                (self.agents_targets_dists < self._covering_range).type(torch.int),
-                dim=1,
+            self.targets_pos = np.stack([t.state.pos for t in self._targets], axis=1)
+            self.agents_targets_dists = np.linalg.norm(self.agents_pos - self.targets_pos)
+            self.agents_per_target = np.sum(
+                (self.agents_targets_dists < self._covering_range).astype(np.int32),
+                axis=1,
             )
             self.covered_targets = self.agents_per_target >= self._agents_per_target
 
@@ -167,8 +168,8 @@ class Scenario(BaseScenario):
                         for o in self._targets
                         if o is not target
                     ]
-                    occupied_positions = torch.cat(
-                        occupied_positions_agents + occupied_positions_targets, dim=1
+                    occupied_positions = np.concatenate(
+                        occupied_positions_agents + occupied_positions_targets, axis=1
                     )
                     pos = ScenarioUtils.find_random_pos_for_entity(
                         occupied_positions,
@@ -197,11 +198,11 @@ class Scenario(BaseScenario):
         return agent.collision_rew + covering_rew + self.time_rew
 
     def get_outside_pos(self, env_index):
-        return torch.empty(
+        return np.empty(
             (1, self.world.dim_p)
             if env_index is not None
             else (self.world.batch_dim, self.world.dim_p),
-            device=self.world.device,
+             
         ).uniform_(-1000 * self.world.x_semidim, -10 * self.world.x_semidim)
 
     def agent_reward(self, agent):
@@ -213,7 +214,7 @@ class Scenario(BaseScenario):
         )
         num_covered_targets_covered_by_agent = (
             targets_covered_by_agent * self.covered_targets
-        ).sum(dim=-1)
+        ).sum(axis=-1)
         agent.covering_reward += (
             num_covered_targets_covered_by_agent * self.covering_rew_coeff
         )
@@ -222,7 +223,7 @@ class Scenario(BaseScenario):
     def observation(self, agent: Agent):
         lidar_1_measures = agent.sensors[0].measure()
         # lidar_2_measures = agent.sensors[1].measure()
-        return torch.cat(
+        return np.concatenate(
             [
                 agent.state.pos,
                 agent.state.vel,
@@ -230,7 +231,7 @@ class Scenario(BaseScenario):
                 lidar_1_measures,
                 # lidar_2_measures,
             ],
-            dim=-1,
+            axis=-1,
         )
 
     def info(self, agent: Agent) -> Dict[str, Tensor]:
@@ -244,7 +245,7 @@ class Scenario(BaseScenario):
         return info
 
     def done(self):
-        return self.all_time_covered_targets.all(dim=-1)
+        return self.all_time_covered_targets.all(axis=-1)
 
     def extra_render(self, env_index: int = 0) -> "List[Geom]":
         from vmas.simulator import rendering
@@ -263,8 +264,8 @@ class Scenario(BaseScenario):
             for j, agent2 in enumerate(self.world.agents):
                 if j <= i:
                     continue
-                agent_dist = torch.linalg.vector_norm(
-                    agent1.state.pos - agent2.state.pos, dim=-1
+                agent_dist = np.linalg.norm(
+                    agent1.state.pos - agent2.state.pos, axis=-1
                 )
                 if agent_dist[env_index] <= self._comms_range:
                     color = Color.BLACK.value
@@ -286,45 +287,45 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         assert self.continuous_actions
 
         # First calculate the closest point to a circle of radius circle_radius given the current position
-        circle_origin = torch.zeros(1, 2, device=observation.device)
+        circle_origin = np.zeros(1, 2)
         circle_radius = 0.75
         current_pos = observation[:, :2]
         v = current_pos - circle_origin
         closest_point_on_circ = (
-            circle_origin + v / torch.linalg.norm(v, dim=1).unsqueeze(1) * circle_radius
+            circle_origin + v / np.linalg.norm(v, axis=1).unsqueeze(1) * circle_radius
         )
 
         # calculate the normal vector of the vector from the origin of the circle to that closest point
         # on the circle. Adding this scaled normal vector to the other vector gives us a target point we
         # try to reach, thus resulting in a circular motion.
-        closest_point_on_circ_normal = torch.stack(
-            [closest_point_on_circ[:, Y], -closest_point_on_circ[:, X]], dim=1
+        closest_point_on_circ_normal = np.stack(
+            [closest_point_on_circ[:, Y], -closest_point_on_circ[:, X]], axis=1
         )
-        closest_point_on_circ_normal /= torch.linalg.norm(
-            closest_point_on_circ_normal, dim=1
+        closest_point_on_circ_normal /= np.linalg.norm(
+            closest_point_on_circ_normal, axis=1
         ).unsqueeze(1)
         closest_point_on_circ_normal *= 0.1
         des_pos = closest_point_on_circ + closest_point_on_circ_normal
 
         # Move away from other agents within visibility range
         lidar_agents = observation[:, 4:16]
-        agent_visible = torch.any(lidar_agents < 0.15, dim=1)
-        _, agent_dir_index = torch.min(lidar_agents, dim=1)
-        agent_dir = agent_dir_index / lidar_agents.shape[1] * 2 * torch.pi
-        agent_vec = torch.stack([torch.cos(agent_dir), torch.sin(agent_dir)], dim=1)
+        agent_visible = np.any(lidar_agents < 0.15, axis=1)
+        _, agent_dir_index = np.min(lidar_agents, axis=1)
+        agent_dir = agent_dir_index / lidar_agents.shape[1] * 2 * np.pi
+        agent_vec = np.stack([np.cos(agent_dir), np.sin(agent_dir)], axis=1)
         des_pos_agent = current_pos - agent_vec * 0.1
         des_pos[agent_visible] = des_pos_agent[agent_visible]
 
         # Move towards targets within visibility range
         lidar_targets = observation[:, 16:28]
-        target_visible = torch.any(lidar_targets < 0.3, dim=1)
-        _, target_dir_index = torch.min(lidar_targets, dim=1)
-        target_dir = target_dir_index / lidar_targets.shape[1] * 2 * torch.pi
-        target_vec = torch.stack([torch.cos(target_dir), torch.sin(target_dir)], dim=1)
+        target_visible = np.any(lidar_targets < 0.3, axis=1)
+        _, target_dir_index = np.min(lidar_targets, axis=1)
+        target_dir = target_dir_index / lidar_targets.shape[1] * 2 * np.pi
+        target_vec = np.stack([np.cos(target_dir), np.sin(target_dir)], axis=1)
         des_pos_target = current_pos + target_vec * 0.1
         des_pos[target_visible] = des_pos_target[target_visible]
 
-        action = torch.clamp(
+        action = np.clip(
             (des_pos - current_pos) * 10,
             min=-u_range,
             max=u_range,

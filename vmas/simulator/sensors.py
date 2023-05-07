@@ -7,6 +7,7 @@ from __future__ import annotations
 import typing
 from abc import ABC, abstractmethod
 from typing import List, Union, Callable
+import numpy as np
 
 import torch
 
@@ -48,30 +49,31 @@ class Lidar(Sensor):
         self,
         world: vmas.simulator.core.World,
         angle_start: float = 0.0,
-        angle_end: float = 2 * torch.pi,
+        angle_end: float = 2 * np.pi,
         n_rays: int = 8,
         max_range: float = 1.0,
         entity_filter: Callable[[vmas.simulator.core.Entity], bool] = lambda _: True,
         render_color: vmas.simulator.utils.Color = vmas.simulator.utils.Color.GRAY,
     ):
         super().__init__(world)
-        if (angle_start - angle_end) % (torch.pi * 2) < 1e-5:
-            angles = torch.linspace(
-                angle_start, angle_end, n_rays + 1, device=self._world.device
+        if (angle_start - angle_end) % (np.pi * 2) < 1e-5:
+            angles = np.linspace(
+                angle_start, angle_end, n_rays + 1, 
             )[:n_rays]
         else:
-            angles = torch.linspace(
-                angle_start, angle_end, n_rays, device=self._world.device
+            angles = np.linspace(
+                angle_start, angle_end, n_rays, 
             )
         # repeat for n dims and make angles first dim so that we can iterate over them
-        self._angles = angles.repeat(self._world.batch_dim, 1).swapaxes(1, 0)
+        self._angles = np.expand_dims(angles,0).repeat(self._world.batch_dim, 1).swapaxes(1, 0)
         self._max_range = max_range
         self._last_measurement = None
         self._entity_filter = entity_filter
         self._render_color = render_color
 
     def to(self, device: torch.device):
-        self._angles = self._angles.to(device)
+        # self._angles = self._angles.to(device)
+        pass
 
     @property
     def entity_filter(self):
@@ -94,7 +96,7 @@ class Lidar(Sensor):
                     entity_filter=self.entity_filter,
                 )
             )
-        measurement = torch.stack(dists, dim=1)
+        measurement = np.stack(dists, axis=1)
         self._last_measurement = measurement.swapaxes(1, 0)
         return measurement
 
@@ -117,8 +119,8 @@ class Lidar(Sensor):
                 ray_circ = rendering.make_circle(0.01)
                 ray_circ.set_color(*self._render_color.value)
                 xform = rendering.Transform()
-                rot = torch.stack([torch.cos(angle), torch.sin(angle)], dim=-1)
-                pos_circ = self.agent.state.pos + rot * dist.unsqueeze(1)
+                rot = np.stack([np.cos(angle), np.sin(angle)], axis=-1)
+                pos_circ = self.agent.state.pos + rot * np.expand_dims(dist,1)
                 xform.set_translation(*pos_circ[env_index])
                 ray_circ.add_attr(xform)
 

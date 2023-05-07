@@ -4,6 +4,7 @@
 import math
 import warnings
 from typing import Union
+import numpy as np
 
 import torch
 from torch import Tensor
@@ -72,18 +73,18 @@ class VelocityController:
                 warnings.warn("Force limits not specified. Integrator can wind up!")
 
         # containers for integral & derivative control
-        self.accum_errs = torch.zeros(
-            (world.batch_dim, world.dim_p), device=world.device
+        self.accum_errs = np.zeros(
+            (world.batch_dim, world.dim_p), 
         )
-        self.prev_err = torch.zeros((world.batch_dim, world.dim_p), device=world.device)
+        self.prev_err = np.zeros((world.batch_dim, world.dim_p), )
 
     def reset(self, index: Union[Tensor, int] = None):
         if index is None:
-            self.accum_errs = torch.zeros(
-                (self.world.batch_dim, self.world.dim_p), device=self.world.device
+            self.accum_errs = np.zeros(
+                (self.world.batch_dim, self.world.dim_p), 
             )
-            self.prev_err = torch.zeros(
-                (self.world.batch_dim, self.world.dim_p), device=self.world.device
+            self.prev_err = np.zeros(
+                (self.world.batch_dim, self.world.dim_p), 
             )
         else:
             self.accum_errs[index] = 0.0

@@ -278,7 +278,7 @@ def render_interactively(
             scenario=scenario_name,
             num_envs=1,
             device="cpu",
-            continuous_actions=True,
+            continuous_actions=False,
             wrapper=Wrapper.GYM,
             seed=0,
             # Environment specific variables

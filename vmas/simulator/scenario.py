@@ -4,6 +4,7 @@
 import typing
 from abc import ABC, abstractmethod
 from typing import Dict, List
+import numpy as np
 
 import torch
 from torch import Tensor
@@ -224,7 +225,7 @@ class BaseScenario(ABC):
 
         :return dones: Bool tensor of shape (n_envs)
         """
-        return torch.tensor([False], device=self.world.device).repeat(
+        return np.array([False]).repeat(
             self.world.batch_dim
         )
 
