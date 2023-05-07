@@ -356,7 +356,7 @@ class Environment(TorchVectorizedObject):
                 np.abs(physical_action) > agent.u_range
             ), f"Physical actions of agent {agent.name} are out of its range {agent.u_range}"
 
-            agent.action.u = physical_action.to(np.float32)
+            agent.action.u = physical_action.astype(np.float32)
         else:
             physical_action = np.expand_dims(action[:, action_index], -1)
             action_index += 1

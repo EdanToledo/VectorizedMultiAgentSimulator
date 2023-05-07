@@ -287,12 +287,12 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         assert self.continuous_actions
 
         # First calculate the closest point to a circle of radius circle_radius given the current position
-        circle_origin = np.zeros(1, 2)
+        circle_origin = np.zeros((1, 2))
         circle_radius = 0.75
         current_pos = observation[:, :2]
         v = current_pos - circle_origin
         closest_point_on_circ = (
-            circle_origin + v / np.linalg.norm(v, axis=1).unsqueeze(1) * circle_radius
+            circle_origin + v / np.expand_dims(np.linalg.norm(v, axis=1), 1) * circle_radius
         )
 
         # calculate the normal vector of the vector from the origin of the circle to that closest point
@@ -301,16 +301,16 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         closest_point_on_circ_normal = np.stack(
             [closest_point_on_circ[:, Y], -closest_point_on_circ[:, X]], axis=1
         )
-        closest_point_on_circ_normal /= np.linalg.norm(
+        closest_point_on_circ_normal /= np.expand_dims(np.linalg.norm(
             closest_point_on_circ_normal, axis=1
-        ).unsqueeze(1)
+        ), 1)
         closest_point_on_circ_normal *= 0.1
         des_pos = closest_point_on_circ + closest_point_on_circ_normal
 
         # Move away from other agents within visibility range
         lidar_agents = observation[:, 4:16]
         agent_visible = np.any(lidar_agents < 0.15, axis=1)
-        _, agent_dir_index = np.min(lidar_agents, axis=1)
+        agent_dir_index = np.argmin(lidar_agents, axis=1)
         agent_dir = agent_dir_index / lidar_agents.shape[1] * 2 * np.pi
         agent_vec = np.stack([np.cos(agent_dir), np.sin(agent_dir)], axis=1)
         des_pos_agent = current_pos - agent_vec * 0.1
@@ -319,7 +319,7 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         # Move towards targets within visibility range
         lidar_targets = observation[:, 16:28]
         target_visible = np.any(lidar_targets < 0.3, axis=1)
-        _, target_dir_index = np.min(lidar_targets, axis=1)
+        target_dir_index = np.argmin(lidar_targets, axis=1)
         target_dir = target_dir_index / lidar_targets.shape[1] * 2 * np.pi
         target_vec = np.stack([np.cos(target_dir), np.sin(target_dir)], axis=1)
         des_pos_target = current_pos + target_vec * 0.1
@@ -327,8 +327,8 @@ class HeuristicPolicy(BaseHeuristicPolicy):
 
         action = np.clip(
             (des_pos - current_pos) * 10,
-            min=-u_range,
-            max=u_range,
+            a_min=-u_range,
+            a_max=u_range,
         )
 
         return action

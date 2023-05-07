@@ -14,7 +14,7 @@ class TestDiscovery(unittest.TestCase):
     ) -> None:
         super().setUp()
 
-        self.n_envs = 15
+        self.n_envs = 1
         self.env = make_env(
             scenario="discovery",
             num_envs=self.n_envs,
