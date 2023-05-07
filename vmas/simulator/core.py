@@ -2138,15 +2138,15 @@ class World(TorchVectorizedObject):
             sign
             * force_multiplier
             * delta_pos
-            / dist.unsqueeze(-1)
-            * penetration.unsqueeze(-1)
+            / np.expand_dims(dist, -1)
+            * np.expand_dims(penetration, -1)
         )
         force[dist < min_dist] = 0
         if not attractive:
             force[dist > dist_min] = 0
         else:
             force[dist < dist_min] = 0
-        assert not force.isnan().any()
+        assert not np.isnan(force).any()
         return force, -force
 
     # integrate physical state

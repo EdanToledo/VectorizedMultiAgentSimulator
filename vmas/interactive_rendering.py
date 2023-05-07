@@ -101,7 +101,7 @@ class InteractiveEnv:
 
             if self.display_info:
                 obs[self.current_agent_index] = np.around(
-                    obs[self.current_agent_index].cpu().tolist(), decimals=2
+                    obs[self.current_agent_index].tolist(), decimals=2
                 )
                 len_obs = len(obs[self.current_agent_index])
                 message = f"\t\t{obs[self.current_agent_index][len_obs//2:]}"

@@ -139,7 +139,7 @@ class Scenario(BaseScenario):
                 [a.state.pos for a in self.world.agents], axis=1
             )
             self.targets_pos = np.stack([t.state.pos for t in self._targets], axis=1)
-            self.agents_targets_dists = np.linalg.norm(self.agents_pos - self.targets_pos)
+            self.agents_targets_dists = np.linalg.norm(self.agents_pos[:,:, np.newaxis, :] - self.targets_pos[:, np.newaxis, :, :], axis=-1)
             self.agents_per_target = np.sum(
                 (self.agents_targets_dists < self._covering_range).astype(np.int32),
                 axis=1,
@@ -164,7 +164,7 @@ class Scenario(BaseScenario):
                 occupied_positions_agents = [self.agents_pos]
                 for i, target in enumerate(self._targets):
                     occupied_positions_targets = [
-                        o.state.pos.unsqueeze(1)
+                        np.expand_dims(o.state.pos, 1)
                         for o in self._targets
                         if o is not target
                     ]

@@ -132,7 +132,7 @@ class Environment(TorchVectorizedObject):
 
         for agent in self.agents:
             if get_rewards:
-                reward = self.scenario.reward(agent).clone()
+                reward = self.scenario.reward(agent).copy()
                 if dict_agent_names:
                     rewards.update({agent.name: reward})
                 else:
@@ -145,14 +145,14 @@ class Environment(TorchVectorizedObject):
                     obs.append(observation)
             if get_infos:
                 info = self.scenario.info(agent)
-                info = {key: val.clone() for key, val in info.items()}
+                info = {key: val.copy() for key, val in info.items()}
                 if dict_agent_names:
                     infos.update({agent.name: info})
                 else:
                     infos.append(info)
 
         if get_dones:
-            dones = self.done().clone()
+            dones = self.done().copy()
 
         result = [obs, rewards, dones, infos]
         return [data for data in result if data is not None]
@@ -244,7 +244,7 @@ class Environment(TorchVectorizedObject):
         return obs, rewards, dones, infos
 
     def done(self):
-        dones = self.scenario.done().clone()
+        dones = self.scenario.done().copy()
         if self.max_steps is not None:
             dones += self.steps >= self.max_steps
         return dones
