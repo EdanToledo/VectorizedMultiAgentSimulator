@@ -5,6 +5,7 @@ from typing import Callable, Dict
 
 import torch
 from torch import Tensor
+import numpy as np
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World, Entity
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
@@ -56,7 +57,7 @@ class Scenario(BaseScenario):
                 ],
                 render_action=True,
             )
-            agent.collision_rew = torch.zeros(batch_dim, device=device)
+            agent.collision_rew = np.zeros(batch_dim)
             agent.dist_rew = agent.collision_rew.clone()
 
             world.add_agent(agent)
@@ -79,17 +80,17 @@ class Scenario(BaseScenario):
     def action_script_creator(self):
         def action_script(agent, world):
             t = self.t / 30
-            agent.action.u = torch.stack([torch.cos(t), torch.sin(t)], dim=1)
+            agent.action.u = np.stack([np.cos(t), np.sin(t)], axis=1)
 
         return action_script
 
     def reset_world_at(self, env_index: int = None):
-        target_pos = torch.zeros(
+        target_pos = np.zeros(
             (1, self.world.dim_p)
             if env_index is not None
             else (self.world.batch_dim, self.world.dim_p),
-            device=self.world.device,
-            dtype=torch.float32,
+           
+            dtype=np.float32,
         )
 
         target_pos[:, Y] = -self.y_dim
@@ -106,36 +107,36 @@ class Scenario(BaseScenario):
         for agent in self.world.policy_agents:
             if env_index is None:
                 agent.distance_shaping = (
-                    torch.stack(
+                    np.stack(
                         [
-                            torch.linalg.vector_norm(
-                                agent.state.pos - a.state.pos, dim=-1
+                            np.linalg.norm(
+                                agent.state.pos - a.state.pos, axis=-1
                             )
                             for a in self.world.agents
                             if a != agent
                         ],
-                        dim=1,
+                        axis=1,
                     )
                     - self.desired_distance
                 ).pow(2).mean(-1) * self.dist_shaping_factor
 
             else:
                 agent.distance_shaping[env_index] = (
-                    torch.stack(
+                    np.stack(
                         [
-                            torch.linalg.vector_norm(
+                            np.linalg.norm(
                                 agent.state.pos[env_index] - a.state.pos[env_index]
                             )
                             for a in self.world.agents
                             if a != agent
                         ],
-                        dim=0,
+                        axis=0,
                     )
                     - self.desired_distance
                 ).pow(2).mean(-1) * self.dist_shaping_factor
 
         if env_index is None:
-            self.t = torch.zeros(self.world.batch_dim, device=self.world.device)
+            self.t = np.zeros(self.world.batch_dim)
         else:
             self.t[env_index] = 0
 
@@ -164,13 +165,13 @@ class Scenario(BaseScenario):
 
         # stay close together (separation)
         agents_dist_shaping = (
-            torch.stack(
+            np.stack(
                 [
-                    torch.linalg.vector_norm(agent.state.pos - a.state.pos, dim=-1)
+                    np.linalg.norm(agent.state.pos - a.state.pos, axis=-1)
                     for a in self.world.agents
                     if a != agent
                 ],
-                dim=1,
+                axis=1,
             )
             - self.desired_distance
         ).pow(2).mean(-1) * self.dist_shaping_factor
@@ -180,14 +181,14 @@ class Scenario(BaseScenario):
         return agent.collision_rew + agent.dist_rew
 
     def observation(self, agent: Agent):
-        return torch.cat(
+        return np.concatenate(
             [
                 agent.state.pos,
                 agent.state.vel,
                 agent.state.pos - self._target.state.pos,
                 agent.sensors[0].measure(),
             ],
-            dim=-1,
+            axis=-1,
         )
 
     def info(self, agent: Agent) -> Dict[str, Tensor]:
@@ -204,36 +205,36 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         assert self.continuous_actions
 
         # First calculate the closest point to a circle of radius circle_radius given the current position
-        circle_origin = torch.zeros(1, 2)
+        circle_origin = np.zeros((1, 2))
         circle_radius = 0.3
         current_pos = observation[:, :2]
         v = current_pos - circle_origin
         closest_point_on_circ = (
-            circle_origin + v / torch.linalg.norm(v, dim=1).unsqueeze(1) * circle_radius
+            circle_origin + v / np.expand_dims(np.linalg.norm(v, axis=1), 1) * circle_radius
         )
 
         # calculate the normal vector of the vector from the origin of the circle to that closest point
         # on the circle. Adding this scaled normal vector to the other vector gives us a target point we
         # try to reach, thus resulting in a circular motion.
-        closest_point_on_circ_normal = torch.stack(
-            [closest_point_on_circ[:, Y], -closest_point_on_circ[:, X]], dim=1
+        closest_point_on_circ_normal = np.stack(
+            [closest_point_on_circ[:, Y], -closest_point_on_circ[:, X]], axis=1
         )
-        closest_point_on_circ_normal /= torch.linalg.norm(
-            closest_point_on_circ_normal, dim=1
-        ).unsqueeze(1)
+        closest_point_on_circ_normal /= np.expand_dims(np.linalg.norm(
+            closest_point_on_circ_normal, axis=1
+        ), 1)
         closest_point_on_circ_normal *= 0.1
         des_pos = closest_point_on_circ + closest_point_on_circ_normal
 
         # Move away from other agents and obstcles within visibility range
         lidar = observation[:, 6:18]
-        object_visible = torch.any(lidar < 0.1, dim=1)
-        _, object_dir_index = torch.min(lidar, dim=1)
-        object_dir = object_dir_index / lidar.shape[1] * 2 * torch.pi
-        object_vec = torch.stack([torch.cos(object_dir), torch.sin(object_dir)], dim=1)
+        object_visible = np.any(lidar < 0.1, axis=1)
+        _, object_dir_index = np.min(lidar, axis=1)
+        object_dir = object_dir_index / lidar.shape[1] * 2 * np.pi
+        object_vec = np.stack([np.cos(object_dir), np.sin(object_dir)], axis=1)
         des_pos_object = current_pos - object_vec * 0.1
         des_pos[object_visible] = des_pos_object[object_visible]
 
-        action = torch.clamp(
+        action = np.clip(
             (des_pos - current_pos) * 10,
             min=-u_range,
             max=u_range,
