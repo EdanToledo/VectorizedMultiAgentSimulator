@@ -434,7 +434,7 @@ class Environment(TorchVectorizedObject):
 
     def render(
         self,
-        mode="human",
+        mode="rgb_array",
         env_index=0,
         agent_index_focus: int = None,
         visualize_when_rgb: bool = False,
