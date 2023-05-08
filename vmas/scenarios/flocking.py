@@ -58,7 +58,7 @@ class Scenario(BaseScenario):
                 render_action=True,
             )
             agent.collision_rew = np.zeros(batch_dim)
-            agent.dist_rew = agent.collision_rew.clone()
+            agent.dist_rew = agent.collision_rew.copy()
 
             world.add_agent(agent)
 
@@ -106,7 +106,7 @@ class Scenario(BaseScenario):
 
         for agent in self.world.policy_agents:
             if env_index is None:
-                agent.distance_shaping = (
+                agent.distance_shaping = np.power(
                     np.stack(
                         [
                             np.linalg.norm(
@@ -118,7 +118,7 @@ class Scenario(BaseScenario):
                         axis=1,
                     )
                     - self.desired_distance
-                ).pow(2).mean(-1) * self.dist_shaping_factor
+                , 2).mean(-1) * self.dist_shaping_factor
 
             else:
                 agent.distance_shaping[env_index] = (
@@ -164,7 +164,7 @@ class Scenario(BaseScenario):
                             b.collision_rew[collision] += self.collision_reward
 
         # stay close together (separation)
-        agents_dist_shaping = (
+        agents_dist_shaping = np.power(
             np.stack(
                 [
                     np.linalg.norm(agent.state.pos - a.state.pos, axis=-1)
@@ -174,7 +174,7 @@ class Scenario(BaseScenario):
                 axis=1,
             )
             - self.desired_distance
-        ).pow(2).mean(-1) * self.dist_shaping_factor
+        , 2).mean(-1) * self.dist_shaping_factor
         agent.dist_rew = agent.distance_shaping - agents_dist_shaping
         agent.distance_shaping = agents_dist_shaping
 

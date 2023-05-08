@@ -858,7 +858,7 @@ class Agent(Entity):
             self._action.u.shape[1] == world.dim_p
         ), f"Scripted physical action of agent {self.name} has wrong shape"
         assert (
-            (self._action.u / self.u_multiplier).abs() <= self.u_range
+            np.abs(self._action.u / self.u_multiplier) <= self.u_range
         ).all(), f"Scripted physical action of {self.name} is out of range"
         if self.u_rot_range != 0:
             assert (
