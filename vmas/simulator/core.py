@@ -12,7 +12,6 @@ import numpy as np
 
 import torch
 from torch import Tensor
-
 from vmas.simulator.joints import JointConstraint, Joint
 from vmas.simulator.sensors import Sensor
 from vmas.simulator.utils import (
@@ -503,11 +502,14 @@ class Entity(TorchVectorizedObject, Observable, ABC):
         self._linear_friction = linear_friction
         self._angular_friction = angular_friction
         # gravity
-        self._gravity = (
-            np.array(gravity, dtype=np.float32)
-            if gravity is not None
-            else gravity
-        )
+        if isinstance(gravity, Tensor):
+            self._gravity = gravity
+        else:
+            self._gravity = (
+                np.array(gravity, dtype=np.float32)
+                if gravity is not None
+                else gravity
+            )
         # entity goal
         self._goal = None
         # Render the entity
