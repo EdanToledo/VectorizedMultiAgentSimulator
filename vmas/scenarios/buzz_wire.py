@@ -5,6 +5,7 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+import numpy as np
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World, Line
 from vmas.simulator.joints import Joint
@@ -89,26 +90,28 @@ class Scenario(BaseScenario):
 
         self.build_path_line(world)
 
-        self.pos_rew = torch.zeros(batch_dim, device=device, dtype=torch.float32)
-        self.collision_rew = self.pos_rew.clone()
-        self.collided = torch.full((world.batch_dim,), False, device=device)
+        self.pos_rew = np.zeros(batch_dim, dtype=np.float32)
+        self.collision_rew = self.pos_rew.copy()
+        self.collided = np.full((world.batch_dim,), False,)
 
         return world
 
     def reset_world_at(self, env_index: int = None):
-        start_angle = torch.zeros(
+        start_angle = np.zeros(
             (1, 1) if env_index is not None else (self.world.batch_dim, 1),
-            device=self.world.device,
-            dtype=torch.float32,
-        ).uniform_(
-            -torch.pi / 2 + torch.pi / 3 if self.random_start_angle else 0,
-            torch.pi / 2 - torch.pi / 3 if self.random_start_angle else 0,
+            dtype=np.float32,
+        )
+        
+        start_angle = np.random.uniform(
+            -np.pi / 2 + np.pi / 3 if self.random_start_angle else 0,
+            np.pi / 2 - np.pi / 3 if self.random_start_angle else 0,
+            size=start_angle.shape,
         )
 
-        start_delta_x = (self.agent_spacing / 2) * torch.cos(start_angle)
+        start_delta_x = (self.agent_spacing / 2) * np.cos(start_angle)
         min_x_start = -self.agent_radius
         max_x_start = self.agent_radius
-        start_delta_y = (self.agent_spacing / 2) * torch.sin(start_angle)
+        start_delta_y = (self.agent_spacing / 2) * np.sin(start_angle)
         min_y_start = -self.wall_length / 2 + 2 * self.agent_radius
         max_y_start = -self.agent_radius
 
@@ -117,43 +120,37 @@ class Scenario(BaseScenario):
         min_y_goal = -min_y_start
         max_y_goal = -max_x_start
 
-        ball_position = torch.cat(
+        ball_position = np.concatenate(
             [
                 (min_x_start - max_x_start)
-                * torch.rand(
-                    (1, 1) if env_index is not None else (self.world.batch_dim, 1),
-                    device=self.world.device,
-                    dtype=torch.float32,
+                * np.random.rand(
+                    *(1, 1) if env_index is not None else (self.world.batch_dim, 1),
                 )
                 + max_x_start,
                 (min_y_start - max_y_start)
-                * torch.rand(
-                    (1, 1) if env_index is not None else (self.world.batch_dim, 1),
-                    device=self.world.device,
-                    dtype=torch.float32,
+                * np.random.rand(
+                    *(1, 1) if env_index is not None else (self.world.batch_dim, 1),
                 )
                 + max_y_start,
             ],
-            dim=1,
+            axis=1,
         )
-        goal_pos = torch.cat(
+        goal_pos = np.concatenate(
             [
                 (min_x_goal - max_x_goal)
-                * torch.rand(
-                    (1, 1) if env_index is not None else (self.world.batch_dim, 1),
-                    device=self.world.device,
-                    dtype=torch.float32,
+                * np.random.rand(
+                    *(1, 1) if env_index is not None else (self.world.batch_dim, 1),
+                   
                 )
                 + max_x_goal,
                 (min_y_goal - max_y_goal)
-                * torch.rand(
-                    (1, 1) if env_index is not None else (self.world.batch_dim, 1),
-                    device=self.world.device,
-                    dtype=torch.float32,
+                * np.random.rand(
+                    *(1, 1) if env_index is not None else (self.world.batch_dim, 1),
+                   
                 )
                 + max_y_goal,
             ],
-            dim=1,
+            axis=1,
         )
 
         self.goal.set_pos(
@@ -165,7 +162,7 @@ class Scenario(BaseScenario):
         for i, agent in enumerate(self.world.agents):
             agent.set_pos(
                 ball_position
-                + torch.cat([start_delta_x, start_delta_y], dim=1)
+                + np.concatenate([start_delta_x, start_delta_y], axis=1)
                 * (-1 if i == 0 else 1),
                 batch_index=env_index,
             )
@@ -174,27 +171,27 @@ class Scenario(BaseScenario):
             joint.landmark.set_pos(
                 ball_position
                 + (
-                    (torch.cat([start_delta_x, start_delta_y], dim=1) / 2)
+                    (np.concatenate([start_delta_x, start_delta_y], axis=1) / 2)
                     * (-1 if i == 0 else 1)
                 ),
                 batch_index=env_index,
             )
             joint.landmark.set_rot(
-                start_angle + (torch.pi if i == 1 else 0), batch_index=env_index
+                start_angle + (np.pi if i == 1 else 0), batch_index=env_index
             )
 
         self.spawn_path_line(env_index)
         if env_index is None:
             self.pos_shaping = (
-                torch.linalg.vector_norm(
-                    self.ball.state.pos - self.goal.state.pos, dim=1
+                np.linalg.norm(
+                    self.ball.state.pos - self.goal.state.pos, axis=1
                 )
                 * self.pos_shaping_factor
             )
             self.collided[:] = False
         else:
             self.pos_shaping[env_index] = (
-                torch.linalg.vector_norm(
+                np.linalg.norm(
                     self.ball.state.pos[env_index] - self.goal.state.pos[env_index],
                 )
                 * self.pos_shaping_factor
@@ -205,16 +202,16 @@ class Scenario(BaseScenario):
         is_first = agent == self.world.agents[0]
 
         if is_first:
-            self.rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+            self.rew = np.zeros(
+                self.world.batch_dim, dtype=np.float32
             )
             self.pos_rew[:] = 0
             self.collision_rew[:] = 0
             self.collided[:] = False
 
-            dist_to_goal = torch.linalg.vector_norm(
+            dist_to_goal = np.linalg.norm(
                 self.ball.state.pos - self.goal.state.pos,
-                dim=1,
+                axis=1,
             )
             pos_shaping = dist_to_goal * self.pos_shaping_factor
             self.pos_rew += self.pos_shaping - pos_shaping
@@ -232,14 +229,14 @@ class Scenario(BaseScenario):
         return self.rew
 
     def observation(self, agent: Agent):
-        return torch.cat(
+        return np.concatenate(
             [agent.state.pos, agent.state.vel, agent.state.pos - self.goal.state.pos],
-            dim=-1,
+            axis=-1,
         )
 
     def done(self):
         return (
-            torch.linalg.vector_norm(self.ball.state.pos - self.goal.state.pos, dim=1)
+            np.linalg.norm(self.ball.state.pos - self.goal.state.pos, axis=1)
             <= 0.01
         ) + self.collided
 
@@ -276,28 +273,28 @@ class Scenario(BaseScenario):
     def spawn_path_line(self, env_index):
         for i, wall in enumerate(self.walls):
             wall.set_pos(
-                torch.tensor(
+                np.array(
                     [
                         (self.agent_spacing / 4) * (-1 if i == 0 else 1),
                         0.0,
                     ],
-                    device=self.world.device,
+                   
                 ),
                 batch_index=env_index,
             )
             wall.set_rot(
-                torch.tensor(torch.pi / 2, device=self.world.device),
+                np.array(np.pi / 2),
                 batch_index=env_index,
             )
 
         for i, floor in enumerate(self.floors):
             floor.set_pos(
-                torch.tensor(
+                np.array(
                     [
                         0,
                         (self.wall_length / 2) * (-1 if i == 0 else 1),
                     ],
-                    device=self.world.device,
+                   
                 ),
                 batch_index=env_index,
             )

@@ -104,10 +104,10 @@ class Joint(vmas.simulator.utils.Observer):
             batch_index=None,
         )
         self.landmark.set_rot(
-            np.atan2(
+            np.expand_dims(np.arctan2(
                 pos_b[:, vmas.simulator.utils.Y] - pos_a[:, vmas.simulator.utils.Y],
                 pos_b[:, vmas.simulator.utils.X] - pos_a[:, vmas.simulator.utils.X],
-            ).unsqueeze(-1),
+            ),-1),
             batch_index=None,
         )
 
@@ -151,10 +151,9 @@ class JointConstraint:
         return vmas.simulator.utils.TorchUtils.rotate_vector(
             np.array(
                 entity.shape.get_delta_from_anchor(anchor),
-                device=entity.state.pos.device,
             ),
             entity.state.rot,
-        ).squeeze(-1)
+        )
 
     def pos_point(self, entity: vmas.simulator.core.Entity):
         return entity.state.pos + self.get_delta_anchor(entity)

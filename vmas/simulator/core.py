@@ -137,7 +137,7 @@ class Sphere(Shape):
         return self._radius
 
     def get_delta_from_anchor(self, anchor: Tuple[float, float]) -> Tuple[float, float]:
-        delta = np.array([anchor[X] * self.radius, anchor[Y] * self.radius]).to(
+        delta = np.array([anchor[X] * self.radius, anchor[Y] * self.radius]).astype(
             np.float32
         )
         delta_norm = np.linalg.norm(delta)
@@ -653,6 +653,7 @@ class Entity(TorchVectorizedObject, Observable, ABC):
     def _set_state_property(
         self, prop, entity: EntityState, new: Tensor, batch_index: int
     ):
+        
         assert (
             self.batch_dim is not None
         ), f"Tried to set property of {self.name} without adding it to the world"
@@ -661,6 +662,11 @@ class Entity(TorchVectorizedObject, Observable, ABC):
             if len(new.shape) > 1 and new.shape[0] == self.batch_dim:
                 prop.fset(entity, new)
             else:
+                if len(new.shape) == 1:
+                    new = np.expand_dims(new,0)
+                elif len(new.shape) == 0:
+                    new = np.expand_dims(np.expand_dims(new,0),0)
+               
                 prop.fset(entity, new.repeat(self.batch_dim, 1))
         else:
             new = new.to(self.device)

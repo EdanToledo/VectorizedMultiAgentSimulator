@@ -137,7 +137,7 @@ class TorchUtils:
     @staticmethod
     def clamp_with_norm(tensor: Tensor, max_norm: float):
         norm = np.linalg.norm(tensor, axis=-1)
-        new_tensor = (tensor / norm.unsqueeze(-1)) * max_norm
+        new_tensor = (tensor / np.expand_dims(norm, -1)) * max_norm
         tensor[norm > max_norm] = new_tensor[norm > max_norm]
         return tensor
 
@@ -146,7 +146,7 @@ class TorchUtils:
         if len(angle.shape) > 1:
             angle = angle.squeeze(-1)
         if len(vector.shape) == 1:
-            vector = vector.unsqueeze(0)
+            vector = np.expand_dims(vector,0)
         cos = np.cos(angle)
         sin = np.sin(angle)
         return np.stack(
@@ -159,9 +159,9 @@ class TorchUtils:
 
     @staticmethod
     def cross(vector_a: Tensor, vector_b: Tensor):
-        return (
+        return np.expand_dims(
             vector_a[:, X] * vector_b[:, Y] - vector_a[:, Y] * vector_b[:, X]
-        ).unsqueeze(1)
+        ,1)
 
     @staticmethod
     def compute_torque(f: Tensor, r: Tensor) -> Tensor:
