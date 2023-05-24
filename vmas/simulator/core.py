@@ -669,7 +669,6 @@ class Entity(TorchVectorizedObject, Observable, ABC):
                
                 prop.fset(entity, new.repeat(self.batch_dim, 1))
         else:
-            new = new.to(self.device)
             value = prop.fget(entity)
             value[batch_index] = new
         self.notify_observers()
@@ -2109,14 +2108,12 @@ class World(TorchVectorizedObject):
         dot_p = np.expand_dims(np.einsum("bs,bs->b", delta_pos, rotated_vector),-1)
         # Coordinates of the closes point
         sign = np.sign(dot_p)
-        distance_from_line_center = (
-            np.min(
-                np.abs(dot_p),
-                np.array(line_length / 2, dtype=np.float32),
-            )
-            if limit_to_line_length
-            else np.abs(dot_p)
-        )
+        if limit_to_line_length:
+            distance_from_line_center = np.minimum(np.abs(dot_p),np.array(line_length / 2, dtype=np.float32))
+            
+        else:
+            distance_from_line_center = np.abs(dot_p)
+        
         closest_point = line_pos - sign * distance_from_line_center * rotated_vector
         return closest_point
 
